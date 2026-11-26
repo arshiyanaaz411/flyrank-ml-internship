@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicting CTR for New Clients: A Grouped-Validation Audit</title>
+<meta name="description" content="An honest look at whether pre-click features predict CTR for unseen clients, and a human-reviewed content action playbook. Built on the FlyRank ML Internship dataset.">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#6f6e69; --rule:#e3e2dd; --soft:#f3f2ee; --link:#1f5fb4;
+  --s1:#2a78d6; --s2:#eb6834; --warn-bg:#fff5e8; --warn-line:#e0a24a;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --bg:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#a2a198; --rule:#34332f; --soft:#242321; --link:#7db0f2;
+    --s1:#3987e5; --s2:#d95926; --warn-bg:#2b251a; --warn-line:#9a7430;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.65 Georgia,"Times New Roman",serif;-webkit-text-size-adjust:100%}
+a{color:var(--link)}
+.wrap{max-width:720px;margin:0 auto;padding:0 20px 80px}
+header.top{padding:56px 0 8px}
+.kicker{font:600 13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+h1{font-size:34px;line-height:1.2;margin:0 0 14px;font-weight:700}
+.byline{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink2);margin:0}
+nav.toc{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:26px 0 8px;padding:14px 16px;background:var(--soft);border-radius:10px}
+nav.toc strong{display:block;margin-bottom:6px;color:var(--ink2)}
+nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:28px}
+nav.toc li{margin:2px 0}
+h2{font:700 24px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;margin:52px 0 12px;padding-top:6px}
+h3{font:700 18px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;margin:30px 0 8px}
+p{margin:0 0 16px}
+ul,ol{margin:0 0 16px;padding-left:24px}
+li{margin:4px 0}
+.abstract{border-left:4px solid var(--s1);background:var(--soft);padding:16px 20px;border-radius:0 10px 10px 0;margin:28px 0 0}
+.abstract h2{margin:0 0 8px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);padding:0}
+.abstract p{margin:0;font-size:17px}
+.note{background:var(--warn-bg);border-left:4px solid var(--warn-line);padding:12px 16px;border-radius:0 10px 10px 0;margin:0 0 18px;font-size:16px}
+table{width:100%;border-collapse:collapse;margin:0 0 6px;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;color:var(--ink2);border-bottom:2px solid var(--rule)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;margin:0 0 20px}
+figure{margin:22px 0 26px}
+figcaption{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink2);margin-top:6px}
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--rule);stroke-width:1}
+.chart .axis{stroke:var(--ink2);stroke-width:1.5}
+.chart .s1{fill:var(--s1)} .chart .s2{fill:var(--s2)}
+.chart text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--ink)}
+.chart .tick{font-size:12px;fill:var(--muted)} .chart .axl{font-size:12px;fill:var(--ink2)}
+.chart .val{font-size:13px;font-weight:600} .chart .cat{font-size:12.5px;fill:var(--ink2)} .chart .grp{font-size:13px;font-weight:600}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink2);margin:0 0 6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+code{font:0.88em/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--soft);padding:2px 5px;border-radius:4px}
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--rule);font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink2)}
+@media (max-width:560px){body{font-size:17px} h1{font-size:28px} nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kicker">FlyRank ML Internship &middot; Capstone research paper</p>
+  <h1>Can Pre-Click Features Predict CTR for New Clients? A Grouped-Validation Audit and a Human-Review Content Playbook</h1>
+  <p class="byline">Arshiya Nazneen Dukandar &middot; November 2026</p>
+</header>
+
+<section class="abstract" id="abstract">
+  <h2>Abstract</h2>
+  <p>
+  Content teams need a way to decide which pages deserve review first, so this study asks whether features known before a click can predict click-through rate (CTR) for clients the model has never seen. It uses 30,000 pseudonymized content items from 32 clients (trailing 90-day metrics) and compares a gradient-boosting model with a simple median baseline under 5-fold validation grouped by client, with a random-row split as the comparison. Under the grouped split the model's mean absolute error was 0.00671 against 0.00525 for the baseline (27.9% higher), and the model was also behind the baseline under the random split, so no gain over a median guess was measured. A shuffled-target check showed no sign of a pipeline leak, so the result reads as weak signal in these features rather than a bug. Because of this, the paper turns the output into a low-confidence, decision-support review queue of 627 flagged items with reason codes, human-review rules, a no-go list and monitoring triggers, and it states clearly that nothing here should be automated.
+  </p>
+</section>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#intro">Introduction and problem</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#method">Methodology</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#limits">Limitations and honest framing</a></li>
+    <li><a href="#recs">Ranked recommendations (action playbook)</a></li>
+    <li><a href="#repro">Reproducibility</a></li>
+    <li><a href="#thanks">Acknowledgments and data credit</a></li>
+  </ol>
+</nav>
+
+<section id="intro">
+  <h2>1. Introduction and problem statement</h2>
+  <p>Search-driven content teams have far more pages than editing hours. A common first question is which pages are under-performing for their situation, and a common signal for that is click-through rate (CTR), the share of impressions that become clicks. A model that predicts the CTR a page should get, from facts known before any click, could in principle point an editor to pages that fall well below that expectation.</p>
+  <p><strong>Question.</strong> Can features known before a click predict CTR for new clients better than a simple baseline, and can the result support a practical, human-reviewed content action queue?</p>
+  <p><strong>Why the validation design matters.</strong> A tool like this would be used on clients it was not trained on. If rows from one client appear in both training and test data, a model can learn client-specific habits and look better than it really is. This paper therefore evaluates on whole clients that were held out, and shows what changes against a random split.</p>
+  <p><strong>Scope.</strong> This is an audit with a modest aim: report what was measured, say plainly where the evidence is weak, and describe how a team could use the output safely. It does not claim a production-ready model.</p>
+</section>
+
+<section id="data">
+  <h2>2. Data</h2>
+  <p><strong>Source and release.</strong> The analysis uses the starter file <code>content_refresh_anonymized.csv</code> from the FlyRank ML Internship dataset: 30,000 rows and 44 columns, one row per pseudonymized content item, from 32 pseudonymized clients, with trailing 90-day metrics. The much larger warehouse tables that exist in the wider release were <em>not</em> used in this paper.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Content type</th><th class="n">Items</th><th class="n">Median age (days)</th><th class="n">Median impressions (90d)</th></tr></thead>
+    <tbody>
+      <tr><td>keyword article</td><td class="n">27,207</td><td class="n">236</td><td class="n">955</td></tr>
+      <tr><td>feedly article</td><td class="n">2,096</td><td class="n">291</td><td class="n">4</td></tr>
+      <tr><td>comparison article</td><td class="n">697</td><td class="n">151</td><td class="n">107</td></tr>
+    </tbody></table></div>
+  <p><strong>Label.</strong> CTR, stored in the file as a percentage (a value of 0.76 means 0.76%). It was divided by 100 so that the model works in fractions and "impressions times CTR gap" counts clicks.</p>
+  <p><strong>Cleaning decisions.</strong></p>
+  <ul>
+    <li>No rows were removed: all 30,000 rows had a CTR and a client identifier.</li>
+    <li>An average position of 0 means "no data", so it was turned into a missing value rather than treated as rank zero.</li>
+    <li>Missing values follow content type (one type has almost no keyword data), so filling with zero would have injected a content-type signal. Instead, "has value" flags were added for six fields.</li>
+    <li>Measured: about 27% of items (7,994) have fewer than 100 impressions in the window. Their CTR is unstable and they are treated separately in the playbook.</li>
+  </ul>
+  <p><strong>Excluded from the features, on purpose.</strong> Click, session, engagement, scroll and AI-traffic columns (outcomes, not pre-click facts); impression columns (the denominator of CTR); the trend percentage and trend direction columns (the data documentation marks them as the source of the decline label, so they are never features); and the client and content identifiers (pseudonyms used only for grouping and for the queue). Everything shown here is public-safe: no client names, URLs or queries appear.</p>
+</section>
+
+<section id="method">
+  <h2>3. Methodology</h2>
+  <p><strong>Baseline.</strong> Predict the median CTR of the training clients for every item (a scikit-learn median <code>DummyRegressor</code>). It uses no features, so any useful model must beat it to show value.</p>
+  <p><strong>Model.</strong> <code>HistGradientBoostingRegressor</code> (300 iterations, learning rate 0.05, default squared-error loss, fixed seed 42). It was chosen as a reasonable, explainable step up for tabular data that handles missing values; it was not tuned.</p>
+  <p><strong>Features (26).</strong> Search volume, competition, cost per click, word count, character count, content age, days since last update, average position, six "has value" flags, and one-hot encodings of content type, main intent and competition level. All of these are facts about the item or its keyword context rather than outcomes of the click.</p>
+  <p><strong>Validation.</strong> Five folds grouped by client (<code>GroupKFold</code>): every test fold contains only clients absent from its training folds. For comparison, the same model and baseline were also scored with an ordinary shuffled five-fold split. The main metric is mean absolute error (MAE) in CTR, averaged over folds; lower is better.</p>
+  <p><strong>Leakage checks.</strong></p>
+  <ul>
+    <li>Outcome and denominator columns, trend columns and identifiers were excluded as listed above.</li>
+    <li>A shuffled-target check: when the CTR labels were randomly permuted, the model should not beat the baseline. It did not (section 4), which fits a pipeline without a hidden leak.</li>
+    <li>Random-split versus grouped-split comparison, to see how much a client-sharing split would flatter the model.</li>
+  </ul>
+  <p>These checks are not exhaustive; they reduce, but do not remove, the chance of a hidden leak.</p>
+  <p><strong>Assumptions.</strong> Each row is treated as one item in one fixed 90-day window; CTR is comparable across clients; no time ordering is used because the starter file has one snapshot per item.</p>
+</section>
+
+<section id="results">
+  <h2>4. Results</h2>
+  <h3>Model against baseline, same data and same metric</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Split</th><th>Predictor</th><th class="n">MAE (fraction)</th><th class="n">Spread across folds (std)</th></tr></thead>
+    <tbody>
+      <tr><td>Random row split (before)</td><td>Baseline (median)</td><td class="n">0.005054</td><td class="n">0.000336</td></tr>
+      <tr><td>Random row split (before)</td><td>Gradient boosting</td><td class="n">0.006373</td><td class="n">0.000232</td></tr>
+      <tr><td>Grouped by client (after)</td><td>Baseline (median)</td><td class="n">0.005247</td><td class="n">0.004376</td></tr>
+      <tr><td>Grouped by client (after)</td><td>Gradient boosting</td><td class="n">0.006708</td><td class="n">0.004405</td></tr>
+    </tbody></table></div>
+  <figure>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Baseline (median)</span><span><i style="background:var(--s2)"></i>Gradient boosting model</span></div>
+    <svg viewBox="0 0 640 310" role="img" aria-labelledby="c1t c1d" class="chart">
+<title id="c1t">Mean absolute error of CTR prediction</title>
+<desc id="c1d">Baseline median predictor versus gradient boosting under a random row split and a grouped-by-client split. Baseline: 0.505 and 0.525 percentage points. Model: 0.637 and 0.671 percentage points. Lower is better.</desc>
+<line x1="60" x2="620" y1="240" y2="240" class="grid"/>
+<text x="52" y="244" class="tick" text-anchor="end">0.0</text>
+<line x1="60" x2="620" y1="190.0" y2="190.0" class="grid"/>
+<text x="52" y="194.0" class="tick" text-anchor="end">0.2</text>
+<line x1="60" x2="620" y1="140.0" y2="140.0" class="grid"/>
+<text x="52" y="144.0" class="tick" text-anchor="end">0.4</text>
+<line x1="60" x2="620" y1="90.0" y2="90.0" class="grid"/>
+<text x="52" y="94.0" class="tick" text-anchor="end">0.6</text>
+<line x1="60" x2="620" y1="40.0" y2="40.0" class="grid"/>
+<text x="52" y="44.0" class="tick" text-anchor="end">0.8</text>
+<text x="14" y="140" class="axl" transform="rotate(-90 14 140)" text-anchor="middle">MAE (percentage points of CTR, lower is better)</text>
+<rect x="112" y="113.65" width="72" height="126.35" rx="4" class="s1"><title>Baseline: 0.505 pp</title></rect>
+<text x="148" y="105.65" class="val" text-anchor="middle">0.505</text>
+<text x="148" y="258" class="cat" text-anchor="middle">Baseline</text>
+<rect x="196" y="80.67500000000001" width="72" height="159.325" rx="4" class="s2"><title>Model: 0.637 pp</title></rect>
+<text x="232" y="72.67500000000001" class="val" text-anchor="middle">0.637</text>
+<text x="232" y="258" class="cat" text-anchor="middle">Model</text>
+<text x="190" y="282" class="grp" text-anchor="middle">Random row split (before)</text>
+<rect x="392" y="108.82499999999999" width="72" height="131.175" rx="4" class="s1"><title>Baseline: 0.525 pp</title></rect>
+<text x="428" y="100.82499999999999" class="val" text-anchor="middle">0.525</text>
+<text x="428" y="258" class="cat" text-anchor="middle">Baseline</text>
+<rect x="476" y="72.30000000000001" width="72" height="167.7" rx="4" class="s2"><title>Model: 0.671 pp</title></rect>
+<text x="512" y="64.30000000000001" class="val" text-anchor="middle">0.671</text>
+<text x="512" y="258" class="cat" text-anchor="middle">Model</text>
+<text x="470" y="282" class="grp" text-anchor="middle">Grouped by client (after)</text>
+<line x1="60" x2="620" y1="240" y2="240" class="axis"/>
+</svg>
+    <figcaption>Figure 1. Mean absolute error of CTR prediction, shown in percentage points of CTR (0.005 = 0.5 pp). Lower is better. Measured on the 30,000-item starter sample.</figcaption>
+  </figure>
+  <p><strong>Observed.</strong> Under the grouped split, the model's MAE was 0.00671 against 0.00525 for the baseline, which is 27.9% higher (worse). The model was also behind the baseline under the random split. In this sample, the features did not give a measured gain over predicting the median CTR.</p>
+  <p><strong>Split effect.</strong> Moving from the random split to the grouped split raised the model's MAE by about 5% (0.00637 to 0.00671) and the baseline's by about 4% (0.00505 to 0.00525). That is a small, directional difference: sharing clients across train and test did not flatter the model much here, because there was little to flatter.</p>
+  <p><strong>Client-to-client spread.</strong> The spread across folds is about 0.0044 under the grouped split, against about 0.0002 to 0.0003 under the random split. Which clients land in a test fold changes the score a great deal, so any single number should be read with that spread in mind.</p>
+  <p><strong>Sanity check.</strong> With shuffled labels the model's grouped MAE was 0.00715, not below the baseline, as expected for a pipeline without a leak.</p>
+  <h3>What the errors look like</h3>
+  <p>CTR in this sample is heavy-tailed: most items sit near zero and a few sit far above. One plausible reason the median baseline wins on MAE is that the model was trained with a squared-error loss, which is pulled toward large values, while it was scored on absolute error. This was not tested here (see recommendation 5 in section 6). A concrete example of the failure: the third-ranked item in the review queue has an expected CTR of about 11.95% against an actual 0.05%, a prediction far above the median CTR of any content type in the sample (0.00% to 0.09%). Extreme predictions like this are exactly what a human reviewer should be able to dismiss.</p>
+  <h3>Exploratory: CTR and content age</h3>
+  <figure>
+    <svg viewBox="0 0 640 280" role="img" aria-labelledby="c2t c2d" class="chart">
+<title id="c2t">Median CTR by content age</title>
+<desc id="c2d">Median CTR in percent for six content-age buckets in days: 0.12, 0.08, 0.07, 0.03, 0.06, 0.07. Not a steady decline.</desc>
+<line x1="60" x2="620" y1="210" y2="210" class="grid"/>
+<text x="52" y="214" class="tick" text-anchor="end">0.00</text>
+<line x1="60" x2="620" y1="158.0" y2="158.0" class="grid"/>
+<text x="52" y="162.0" class="tick" text-anchor="end">0.04</text>
+<line x1="60" x2="620" y1="106.0" y2="106.0" class="grid"/>
+<text x="52" y="110.0" class="tick" text-anchor="end">0.08</text>
+<line x1="60" x2="620" y1="54.0" y2="54.0" class="grid"/>
+<text x="52" y="58.0" class="tick" text-anchor="end">0.12</text>
+<text x="14" y="120" class="axl" transform="rotate(-90 14 120)" text-anchor="middle">Median CTR (%)</text>
+<rect x="80" y="54.0" width="64" height="156.0" rx="4" class="s1"><title>90-118 days: 0.12%</title></rect>
+<text x="112" y="46.0" class="val" text-anchor="middle">0.12</text>
+<text x="112" y="228" class="cat" text-anchor="middle">90-118</text>
+<rect x="170" y="106.0" width="64" height="104.0" rx="4" class="s1"><title>118-148 days: 0.08%</title></rect>
+<text x="202" y="98.0" class="val" text-anchor="middle">0.08</text>
+<text x="202" y="228" class="cat" text-anchor="middle">118-148</text>
+<rect x="260" y="118.99999999999999" width="64" height="91.00000000000001" rx="4" class="s1"><title>148-236 days: 0.07%</title></rect>
+<text x="292" y="110.99999999999999" class="val" text-anchor="middle">0.07</text>
+<text x="292" y="228" class="cat" text-anchor="middle">148-236</text>
+<rect x="350" y="171.0" width="64" height="39.0" rx="4" class="s1"><title>236-311 days: 0.03%</title></rect>
+<text x="382" y="163.0" class="val" text-anchor="middle">0.03</text>
+<text x="382" y="228" class="cat" text-anchor="middle">236-311</text>
+<rect x="440" y="132.0" width="64" height="78.0" rx="4" class="s1"><title>311-438 days: 0.06%</title></rect>
+<text x="472" y="124.0" class="val" text-anchor="middle">0.06</text>
+<text x="472" y="228" class="cat" text-anchor="middle">311-438</text>
+<rect x="530" y="118.99999999999999" width="64" height="91.00000000000001" rx="4" class="s1"><title>438-564 days: 0.07%</title></rect>
+<text x="562" y="110.99999999999999" class="val" text-anchor="middle">0.07</text>
+<text x="562" y="228" class="cat" text-anchor="middle">438-564</text>
+<text x="340" y="254" class="grp" text-anchor="middle">Content age bucket (days)</text>
+<line x1="60" x2="620" y1="210" y2="210" class="axis"/>
+</svg>
+    <figcaption>Figure 2. Median CTR by content-age bucket (about 5,000 items per bucket). Observed association only.</figcaption>
+  </figure>
+  <p>Median CTR was highest in the newest bucket (0.12%) and lowest in the 236 to 311 day bucket (0.03%), then partly recovered (0.06% to 0.07%) for older content. This is not a steady decline with age, so the data do not give clear support for any single refresh age. Age is also mixed up with topic, publish cohort and season.</p>
+</section>
+
+<section id="limits">
+  <h2>5. Limitations and honest framing</h2>
+  <div class="note"><strong>Main finding:</strong> in this sample the model did not beat a median baseline on new clients. Everything in the playbook below is therefore a low-confidence aid for human review, not evidence that the flagged pages are failing.</div>
+  <ul>
+    <li><strong>One sample, one window.</strong> A single 30,000-item snapshot with trailing 90-day metrics. Other periods or other kinds of clients are not tested, and no time-aware validation was possible.</li>
+    <li><strong>Large client differences.</strong> High spread across folds means results depend on which clients are held out. With 32 clients, the grouped test is coarse.</li>
+    <li><strong>Heavy-tailed target and loss mismatch.</strong> The model's loss and the evaluation metric differ; a loss matched to MAE was not tried, so the model is not shown to be at its best.</li>
+    <li><strong>No cause.</strong> The queue shows items below the model's expectation, not "bad content". Quality, intent shifts and seasonality are not in the features, and nothing here shows why a page's CTR is low.</li>
+    <li><strong>Estimated clicks are directional.</strong> They assume an item could reach its expected CTR. A few items drive much of the total (the top two make up roughly 17% of estimated extra clicks among flagged items), and the expectations come from a model that did not beat the baseline.</li>
+    <li><strong>Concentration.</strong> Nine of the ten highest-ranked queue items come from two clients, which could reflect those clients' data rather than general patterns.</li>
+    <li><strong>Assumed numbers.</strong> The 100-impression cutoff, the 180-day age rule and the effort hours are my assumptions, not measurements.</li>
+    <li><strong>Non-production.</strong> This is a plan and a queue produced in a notebook, not a deployed system.</li>
+  </ul>
+</section>
+
+<section id="recs">
+  <h2>6. Ranked recommendations: a content action playbook</h2>
+  <p><strong>Intended use.</strong> A ranked review queue that helps an editor decide which items to look at first. It is decision-support for planning refresh work, to be used only after the gate in recommendation 5 below is met.</p>
+
+  <h3>Recommendations, in priority order</h3>
+  <ol>
+    <li><strong>Treat the queue as prompts for human review, not as findings.</strong> Because the model did not beat the baseline, every flag is a low-confidence reason to look at a page.</li>
+    <li><strong>Start with title and snippet reviews.</strong> Under assumed effort of 0.5 hours each, these gave the highest estimated extra clicks per hour (about 92, against about 24 for full refreshes). Directional only, since the hours are assumptions.</li>
+    <li><strong>Review aged flagged items for refresh next.</strong> Refresh candidates need an item both below expectation and older than 180 days; age is used as a prompt, not a cause (Figure 2 shows no clear age effect).</li>
+    <li><strong>Leave low-volume items alone or send them to a person.</strong> About 27% of items have fewer than 100 impressions, and most "feedly article" items are in this group, so their CTR is too unstable to act on.</li>
+    <li><strong>Re-validate before relying on it.</strong> Re-run grouped validation with a loss matched to MAE and on newer data. Use the queue only if the model beats the baseline on held-out clients.</li>
+  </ol>
+
+  <h3>Ranked actions and reason codes</h3>
+  <p>Each item gets a model-expected CTR from a model that never saw its client. An item is flagged only when its actual CTR is below expectation by more than the model's own average error (the noise floor, 0.00671).</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Reason code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>R1_BELOW_EXPECTED</code></td><td>Actual CTR is below expectation by more than the noise floor.</td></tr>
+      <tr><td><code>R2_AGED</code></td><td>Item is older than 180 days (an assumed threshold).</td></tr>
+      <tr><td><code>R3_LOW_VOLUME</code></td><td>Fewer than 100 impressions; CTR is unstable.</td></tr>
+      <tr><td><code>R4_WITHIN_NOISE</code></td><td>Gap is inside the noise floor; monitor only.</td></tr>
+    </tbody></table></div>
+  <p>Actions: <code>REFRESH_CONTENT</code> (R1 and R2), <code>REVIEW_TITLE_SNIPPET</code> (R1 only), <code>HOLD_LOW_VOLUME</code> (R3, always for a person or left alone), <code>MONITOR</code> (otherwise). Items are ranked by estimated opportunity: impressions times the positive CTR gap.</p>
+  <figure>
+    <svg viewBox="0 0 640 190" role="img" aria-labelledby="c3t c3d" class="chart">
+<title id="c3t">Items by suggested action</title>
+<desc id="c3d">MONITOR 21,379 items, HOLD_LOW_VOLUME 7,994, REFRESH_CONTENT 355, REVIEW_TITLE_SNIPPET 272.</desc>
+<text x="196" y="33" class="cat" text-anchor="end">MONITOR</text>
+<rect x="204" y="14" width="330.0" height="26" rx="4" class="s1"><title>MONITOR: 21,379 items</title></rect>
+<text x="542.0" y="33" class="val">21,379</text>
+<text x="196" y="75" class="cat" text-anchor="end">HOLD_LOW_VOLUME</text>
+<rect x="204" y="56" width="123.4" height="26" rx="4" class="s1"><title>HOLD_LOW_VOLUME: 7,994 items</title></rect>
+<text x="335.4" y="75" class="val">7,994</text>
+<text x="196" y="117" class="cat" text-anchor="end">REFRESH_CONTENT</text>
+<rect x="204" y="98" width="5.5" height="26" rx="4" class="s1"><title>REFRESH_CONTENT: 355 items</title></rect>
+<text x="217.5" y="117" class="val">355</text>
+<text x="196" y="159" class="cat" text-anchor="end">REVIEW_TITLE_SNIPPET</text>
+<rect x="204" y="140" width="4.2" height="26" rx="4" class="s1"><title>REVIEW_TITLE_SNIPPET: 272 items</title></rect>
+<text x="216.2" y="159" class="val">272</text>
+</svg>
+    <figcaption>Figure 3. Items by suggested action. 627 items are flagged for refresh or title review (355 + 272).</figcaption>
+  </figure>
+
+  <h3>Archetype to action mapping</h3>
+  <p>Here an archetype is the content type. The default play is a starting point for a human, not a rule.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Archetype</th><th class="n">Items</th><th class="n">Refresh</th><th class="n">Title review</th><th class="n">Hold (low volume)</th><th>Suggested default play</th></tr></thead>
+    <tbody>
+      <tr><td>keyword article</td><td class="n">27,207</td><td class="n">282</td><td class="n">121</td><td class="n">5,919</td><td>Review the flagged few; leave most to monitoring.</td></tr>
+      <tr><td>feedly article</td><td class="n">2,096</td><td class="n">72</td><td class="n">51</td><td class="n">1,744</td><td>Mostly low volume (median 4 impressions); do not act on CTR.</td></tr>
+      <tr><td>comparison article</td><td class="n">697</td><td class="n">1</td><td class="n">100</td><td class="n">331</td><td>Start with title and snippet review.</td></tr>
+    </tbody></table></div>
+
+  <h3>Decay and refresh insight</h3>
+  <p>Median CTR is lower for older content than for the newest content, but not steadily so (Figure 2). The 180-day refresh age is therefore a review prompt chosen for convenience, to be checked against fresh data before it is trusted.</p>
+
+  <h3>Cost and value thinking</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Action</th><th class="n">Items</th><th class="n">Est. extra clicks</th><th class="n">Assumed hours</th><th class="n">Est. clicks per hour</th></tr></thead>
+    <tbody>
+      <tr><td>REVIEW_TITLE_SNIPPET</td><td class="n">272</td><td class="n">12,570</td><td class="n">136</td><td class="n">92.4</td></tr>
+      <tr><td>REFRESH_CONTENT</td><td class="n">355</td><td class="n">25,676</td><td class="n">1,065</td><td class="n">24.1</td></tr>
+      <tr><td>HOLD_LOW_VOLUME</td><td class="n">7,994</td><td class="n">761</td><td class="n">1,998.5</td><td class="n">0.4</td></tr>
+    </tbody></table></div>
+  <p>Effort per item (3 hours for a refresh, 0.5 for a title review, 0.25 for a low-volume check) is an assumption, and estimated clicks assume items reach their expected CTR. Use the ratio to order work, not as a return-on-investment claim. A wasted refresh costs editor hours; a missed item costs clicks; this is why a person stays in the loop.</p>
+
+  <h3>Human-review rules</h3>
+  <ul>
+    <li>A person reads every item in the top of the queue before any change is made.</li>
+    <li>Every low-volume item is reviewed by a person or left alone.</li>
+    <li>The reviewer sees the reason codes and the gap, and may override an action with a written reason.</li>
+    <li>A sample of <code>MONITOR</code> items is spot-checked to catch misses.</li>
+  </ul>
+
+  <h3>What should NOT be automated</h3>
+  <ul>
+    <li>Publishing, rewriting or deleting content straight from the queue.</li>
+    <li>Pruning pages based on a CTR gap alone.</li>
+    <li>Promises to clients such as "this refresh will lift CTR by X".</li>
+    <li>Decisions about very low-volume items, brand-new items with no history, or clients not represented in the sample.</li>
+    <li>Using the queue to rank or judge people or teams.</li>
+    <li>Reading the model's feature use as a cause of CTR.</li>
+    <li>Using the queue after a monitoring trigger fires, until it is re-validated.</li>
+  </ul>
+
+  <h3>Light monitoring and retrain triggers</h3>
+  <ul>
+    <li><strong>Input drift:</strong> compare each key feature against the training sample with the population stability index (PSI). Above 0.25, look closely. In this sample, two random halves of clients already scored between 0.12 and 0.22, so client-to-client differences alone sit near that threshold. Calibrate it per client before relying on it.</li>
+    <li><strong>Error check:</strong> if MAE on new data with known outcomes is more than 20% worse than the grouped-validation MAE, pause the queue.</li>
+    <li><strong>Baseline check:</strong> if the model does not beat the baseline on held-out clients, do not use the queue (this is currently the case).</li>
+    <li><strong>Queue sanity:</strong> if the share of flagged items moves by about 2x, investigate first.</li>
+    <li><strong>Retrain:</strong> when any trigger fires, a new client segment is added, CTR measurement changes, or on a regular schedule such as quarterly (an assumption). Re-run grouped validation after retraining.</li>
+  </ul>
+</section>
+
+<section id="repro">
+  <h2>7. Reproducibility</h2>
+  <ul>
+    <li><strong>Repository:</strong> <a href="https://github.com/arshiyanaaz411/flyrank-ml-internship" target="_blank" rel="noopener">github.com/arshiyanaaz411/flyrank-ml-internship</a></li>
+    <li><strong>Notebook for every number in this paper:</strong> <a href="https://github.com/arshiyanaaz411/flyrank-ml-internship/blob/main/work/notebooks/w07_action_playbook.ipynb" target="_blank" rel="noopener"><code>work/notebooks/w07_action_playbook.ipynb</code></a>. It loads the starter file from the repository, runs the baseline, the model, the random and grouped validation, the shuffled-target check, the queue and the monitoring check. Open it in Google Colab and choose Run all.</li>
+    <li><strong>Data:</strong> <code>data/raw/content_refresh_anonymized.csv</code> in the repository (30,000 rows, 44 columns).</li>
+    <li><strong>Settings:</strong> model with 300 iterations and learning rate 0.05; random seed 42; five folds; impression cutoff 100; age threshold 180 days.</li>
+    <li><strong>Outputs the notebook writes:</strong> the ranked queue file, a metrics file, and the figures. The queue file contains item-level rows and is regenerated by the notebook rather than stored in the repository.</li>
+  </ul>
+</section>
+
+<section id="thanks">
+  <h2>8. Acknowledgments and data credit</h2>
+  <p>Built on the FlyRank ML Internship dataset, <a href="https://flyrank.ai" target="_blank" rel="noopener">flyrank.ai</a>. Crediting the data source is standard research practice, and I am grateful to the FlyRank team for making the dataset available through the ML Internship program.</p>
+</section>
+
+<footer>
+  <p>Language note: results are described as observed or measured on one sample, directional, and for decision-support only. No client names, URLs or private queries appear on this page.</p>
+</footer>
+
+</div>
+</body>
+</html>
